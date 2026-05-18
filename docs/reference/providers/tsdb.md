@@ -65,6 +65,7 @@ Get a key at [thesportsdb.com/pricing](https://www.thesportsdb.com/pricing).
 | Indian Premier League | `ipl` | 4460 | Cricket | Premium |
 | Big Bash League | `bbl` | 4461 | Cricket | Premium |
 | SA20 | `sa20` | 5532 | Cricket | Premium |
+| Swiss Super League | `sui.1` | 4675 | Soccer | Premium |
 | Svenska Cupen | `svenska-cupen` | 4756 | Soccer | Premium |
 
 ## Event Resolution

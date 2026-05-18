@@ -66,7 +66,7 @@ baseball/mlb
 
 ## Soccer League Discovery
 
-ESPN's API exposes ~250 soccer leagues through its `/v2/sports/soccer/leagues` discovery endpoint (hard-capped at 250 by ESPN; we've seen ~247–248 after filtering). During cache refresh, Teamarr discovers available leagues and makes them selectable in the league picker under the Soccer sport. These discovered leagues support event matching in event groups but don't have pre-configured team import. A small number of real soccer leagues (e.g. Swiss Super League, Israeli Premier League) are omitted from ESPN's discovery index despite being fully served by the data endpoints — these are registered as primary leagues in `schema.sql` as a workaround.
+ESPN's API exposes ~250 soccer leagues through its `/v2/sports/soccer/leagues` discovery endpoint (hard-capped at 250 by ESPN; we've seen ~247–248 after filtering). During cache refresh, Teamarr discovers available leagues and makes them selectable in the league picker under the Soccer sport. These discovered leagues support event matching in event groups but don't have pre-configured team import. A small number of real soccer leagues (e.g. Israeli Premier League) are omitted from ESPN's discovery index despite being fully served by the data endpoints — these are registered as primary leagues in `schema.sql` as a workaround.
 
 Soccer leagues use ESPN's dot notation: `{country}.{tier}` (e.g., `eng.1` for Premier League, `ger.2` for 2. Bundesliga).
 

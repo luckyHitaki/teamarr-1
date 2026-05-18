@@ -179,7 +179,7 @@ Teamarr automatically discovers **~250 soccer leagues** from ESPN's API during c
 | Primeira Liga (Portugal) | `primeira` | ESPN |
 | Belgian Pro League | `jupiler` | ESPN |
 | Scottish Premiership | `spfl` | ESPN |
-| Swiss Super League | `swiss-super-league` | ESPN |
+| Swiss Super League | `swiss-super-league` | TSDB |
 | Turkish Süper Lig | `super-lig` | ESPN |
 | Greek Super League | `greek-super-league` | ESPN |
 | Saudi Pro League | `spl` | ESPN |
