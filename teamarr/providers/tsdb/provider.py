@@ -13,6 +13,7 @@ from teamarr.core import (
     Event,
     EventStatus,
     LeagueMappingSource,
+    ProviderFetchError,
     SportsProvider,
     Team,
     TeamStats,
@@ -90,48 +91,71 @@ class TSDBProvider(SportsProvider):
         1. eventsday.php - Date-specific (works for most leagues)
         2. eventsnextleague.php - Upcoming events filtered by date
         3. eventsround.php - Full season events filtered by date (Unrivaled, etc.)
+
+        Raises ProviderFetchError if all endpoints fail due to rate limiting
+        or network errors (client returned None for every attempt), so the
+        service layer knows not to cache the empty result.
         """
         date_str = target_date.strftime("%Y-%m-%d")
+        all_endpoints_failed = True  # Track if every endpoint returned None
 
         # Try date-specific endpoint first
         data = self._client.get_events_by_date(league, date_str)
-        if data and data.get("events"):
-            events = []
-            for event_data in data["events"]:
-                event = self._parse_event(event_data, league)
-                if event:
-                    events.append(event)
-            return events
+        if data is not None:
+            all_endpoints_failed = False
+            if data.get("events"):
+                events = []
+                for event_data in data["events"]:
+                    event = self._parse_event(event_data, league)
+                    if event:
+                        events.append(event)
+                return events
 
         # Fall back to next league events, filter by date
         data = self._client.get_league_next_events(league)
-        if data and data.get("events"):
-            events = []
-            for event_data in data["events"]:
-                # Filter to target date
-                event_date = event_data.get("dateEvent")
-                if event_date != date_str:
-                    continue
-                event = self._parse_event(event_data, league)
-                if event:
-                    events.append(event)
-            if events:
-                return events
+        if data is not None:
+            all_endpoints_failed = False
+            if data.get("events"):
+                events = []
+                for event_data in data["events"]:
+                    # Filter to target date
+                    event_date = event_data.get("dateEvent")
+                    if event_date != date_str:
+                        continue
+                    event = self._parse_event(event_data, league)
+                    if event:
+                        events.append(event)
+                if events:
+                    return events
 
         # Final fallback: eventsround.php with round=1 (full season for some leagues)
         # Works for leagues like Unrivaled where other endpoints return empty
         data = self._client.get_events_by_round(league)
-        if data and data.get("events"):
-            events = []
-            for event_data in data["events"]:
-                # Filter to target date
-                event_date = event_data.get("dateEvent")
-                if event_date != date_str:
-                    continue
-                event = self._parse_event(event_data, league)
-                if event:
-                    events.append(event)
-            return events
+        if data is not None:
+            all_endpoints_failed = False
+            if data.get("events"):
+                events = []
+                for event_data in data["events"]:
+                    # Filter to target date
+                    event_date = event_data.get("dateEvent")
+                    if event_date != date_str:
+                        continue
+                    event = self._parse_event(event_data, league)
+                    if event:
+                        events.append(event)
+                return events
+
+        # If ALL endpoints returned None (rate limited / unreachable), signal
+        # to the service layer that this is a transient failure — don't cache
+        if all_endpoints_failed:
+            logger.warning(
+                "[TSDB] All endpoints failed for %s on %s (likely rate limited)",
+                league,
+                date_str,
+            )
+            raise ProviderFetchError(
+                f"TSDB: All endpoints failed for {league} on {date_str}"
+            )
 
         return []
 

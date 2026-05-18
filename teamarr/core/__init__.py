@@ -1,6 +1,11 @@
 """Core types and interfaces."""
 
-from teamarr.core.interfaces import LeagueMapping, LeagueMappingSource, SportsProvider
+from teamarr.core.interfaces import (
+    LeagueMapping,
+    LeagueMappingSource,
+    ProviderFetchError,
+    SportsProvider,
+)
 from teamarr.core.types import (
     SEASON_OFFSEASON,
     SEASON_POSTSEASON,
@@ -23,6 +28,7 @@ __all__ = [
     "LeagueMapping",
     "LeagueMappingSource",
     "Programme",
+    "ProviderFetchError",
     "SEASON_OFFSEASON",
     "SEASON_POSTSEASON",
     "SEASON_PRESEASON",

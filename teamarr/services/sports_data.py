@@ -15,7 +15,7 @@ import threading
 from dataclasses import replace
 from datetime import date
 
-from teamarr.core import Event, SportsProvider, Team, TeamStats
+from teamarr.core import Event, ProviderFetchError, SportsProvider, Team, TeamStats
 from teamarr.database.provider_cache import (
     dict_to_event,
     dict_to_stats,
@@ -227,10 +227,21 @@ class SportsDataService:
         # Iterate through providers
         for provider in self._providers:
             if provider.supports_league(league):
-                events = provider.get_events(league, target_date)
+                try:
+                    events = provider.get_events(league, target_date)
+                except ProviderFetchError as e:
+                    # Provider failed due to rate limiting or network errors.
+                    # Don't cache — next attempt should retry the API.
+                    logger.warning(
+                        "[FETCH_SKIP] %s — not caching empty result", e
+                    )
+                    return []
                 # Check if all events are final (for past dates, enables 30-day cache)
-                # Empty list counts as "all final" (no games = nothing to update)
-                all_final = len(events) == 0 or all(is_event_final(e) for e in events)
+                # Empty list does NOT count as "all final" — we can't tell if it's
+                # genuinely empty or if the API just didn't return data
+                all_final = len(events) > 0 and all(
+                    is_event_final(e) for e in events
+                )
                 ttl = get_events_cache_ttl(target_date, all_events_final=all_final)
                 # Cache ALL results including empty lists to avoid repeated API calls
                 # for leagues with no events on a given day

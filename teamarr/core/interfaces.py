@@ -82,6 +82,15 @@ class LeagueMappingSource(Protocol):
 # =============================================================================
 
 
+class ProviderFetchError(Exception):
+    """Raised when a provider fails to fetch data due to transient errors.
+
+    Used to signal rate-limiting, network errors, or API unavailability
+    so the service layer can avoid caching empty results that would mask
+    real data on the next attempt.
+    """
+
+
 class SportsProvider(ABC):
     """Abstract base class for sports data providers.
 
