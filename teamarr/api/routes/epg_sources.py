@@ -265,7 +265,7 @@ def toggle_mapping(mapping_id: int, data: MappingToggle):
 
 @router.get("/dispatcharr-streams")
 def get_dispatcharr_streams():
-    """List available Dispatcharr streams for mapping."""
+    """List all Dispatcharr streams for mapping."""
     from teamarr.database import get_db
     from teamarr.dispatcharr.factory import get_dispatcharr_connection
 
@@ -274,23 +274,18 @@ def get_dispatcharr_streams():
         if not dc:
             return {"streams": [], "error": "Dispatcharr not configured"}
 
-        groups = dc.m3u.list_groups()
-        all_streams = []
-        for group in groups:
-            try:
-                streams = dc.m3u.list_streams(
-                    group_name=group.name, group_id=group.id
-                )
-                for s in streams:
-                    all_streams.append({
-                        "id": s.id,
-                        "name": s.name,
-                        "group_name": group.name,
-                        "group_id": group.id,
-                        "m3u_account_id": getattr(s, "m3u_account_id", None),
-                    })
-            except Exception:
-                continue
+        # Fetch ALL streams (no group filter) — paginated internally
+        streams = dc.m3u.list_streams()
+        all_streams = [
+            {
+                "id": s.id,
+                "name": s.name,
+                "group_name": s.channel_group or "",
+                "group_id": s.channel_group_id,
+                "m3u_account_id": s.m3u_account_id,
+            }
+            for s in streams
+        ]
 
         return {"streams": all_streams}
     except Exception as e:
