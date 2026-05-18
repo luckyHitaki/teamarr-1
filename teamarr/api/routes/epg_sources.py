@@ -46,7 +46,135 @@ class ProgrammeSearch(BaseModel):
 
 
 # =============================================================================
-# SOURCES
+# STATIC ROUTES (must be registered BEFORE /{source_id} parameterized routes)
+# =============================================================================
+
+
+# -- Dispatcharr streams (for mapping UI) --
+
+@router.get("/dispatcharr-streams")
+def get_dispatcharr_streams():
+    """List all Dispatcharr streams for mapping."""
+    from teamarr.database import get_db
+    from teamarr.dispatcharr.factory import get_dispatcharr_connection
+
+    try:
+        dc = get_dispatcharr_connection(get_db)
+        if not dc:
+            return {"streams": [], "error": "Dispatcharr not configured"}
+
+        # Fetch ALL streams (no group filter) — paginated internally
+        streams = dc.m3u.list_streams()
+        all_streams = [
+            {
+                "id": s.id,
+                "name": s.name,
+                "group_name": s.channel_group or "",
+                "group_id": s.channel_group_id,
+                "m3u_account_id": s.m3u_account_id,
+            }
+            for s in streams
+        ]
+
+        return {"streams": all_streams}
+    except Exception as e:
+        logger.warning("[EPG_SOURCES] Failed to fetch Dispatcharr streams: %s", e)
+        return {"streams": [], "error": str(e)}
+
+
+# -- All channels (across all sources) --
+
+@router.get("/channels/all")
+def list_all_channels():
+    init_epg_sources_db()
+    with get_epg_sources_db() as conn:
+        channels = epg_crud.list_channels(conn)
+    return {"channels": channels}
+
+
+# -- Programmes by channel --
+
+@router.get("/channels/{channel_id}/programmes")
+def list_programmes(
+    channel_id: int,
+    start_after: str | None = Query(None),
+    end_before: str | None = Query(None),
+    limit: int = Query(500, le=2000),
+):
+    with get_epg_sources_db() as conn:
+        programmes = epg_crud.list_programmes(
+            conn, channel_id,
+            start_after=start_after,
+            end_before=end_before,
+            limit=limit,
+        )
+    return {"programmes": programmes}
+
+
+# -- Programme search --
+
+@router.post("/programmes/search")
+def search_programmes(data: ProgrammeSearch):
+    with get_epg_sources_db() as conn:
+        programmes = epg_crud.search_programmes(
+            conn,
+            title_pattern=data.pattern,
+            channel_id=data.channel_id,
+        )
+    return {"programmes": programmes}
+
+
+# -- Mappings --
+
+@router.get("/mappings")
+def list_mappings(enabled_only: bool = Query(True)):
+    init_epg_sources_db()
+    with get_epg_sources_db() as conn:
+        mappings = epg_crud.list_mappings(conn, enabled_only=enabled_only)
+    return {"mappings": mappings}
+
+
+@router.post("/mappings", status_code=status.HTTP_201_CREATED)
+def create_mapping(data: StreamMappingCreate):
+    try:
+        with get_epg_sources_db() as conn:
+            mapping = epg_crud.create_mapping(
+                conn,
+                epg_channel_id=data.epg_channel_id,
+                dispatcharr_stream_id=data.dispatcharr_stream_id,
+                dispatcharr_stream_name=data.dispatcharr_stream_name,
+                m3u_account_id=data.m3u_account_id,
+            )
+        return mapping
+    except Exception as e:
+        if "UNIQUE constraint" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This stream is already mapped",
+            )
+        raise
+
+
+@router.delete("/mappings/{mapping_id}")
+def delete_mapping(mapping_id: int):
+    with get_epg_sources_db() as conn:
+        deleted = epg_crud.delete_mapping(conn, mapping_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    return {"success": True, "message": "Mapping deleted"}
+
+
+@router.patch("/mappings/{mapping_id}")
+def toggle_mapping(mapping_id: int, data: MappingToggle):
+    with get_epg_sources_db() as conn:
+        mapping = epg_crud.toggle_mapping(conn, mapping_id, data.enabled)
+    if not mapping:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    return mapping
+
+
+# =============================================================================
+# SOURCES (list + create use "/" so they stay here)
 # =============================================================================
 
 
@@ -72,6 +200,11 @@ def create_source(data: EPGSourceCreate):
                 detail="A source with this URL already exists",
             )
         raise
+
+
+# =============================================================================
+# PARAMETERIZED ROUTES — /{source_id} (must come AFTER all static routes)
+# =============================================================================
 
 
 @router.get("/{source_id}")
@@ -153,141 +286,8 @@ def refresh_source(source_id: int):
     }
 
 
-# =============================================================================
-# CHANNELS
-# =============================================================================
-
-
 @router.get("/{source_id}/channels")
 def list_source_channels(source_id: int):
     with get_epg_sources_db() as conn:
         channels = epg_crud.list_channels(conn, source_id)
     return {"channels": channels}
-
-
-@router.get("/channels/all")
-def list_all_channels():
-    init_epg_sources_db()
-    with get_epg_sources_db() as conn:
-        channels = epg_crud.list_channels(conn)
-    return {"channels": channels}
-
-
-# =============================================================================
-# PROGRAMMES
-# =============================================================================
-
-
-@router.get("/channels/{channel_id}/programmes")
-def list_programmes(
-    channel_id: int,
-    start_after: str | None = Query(None),
-    end_before: str | None = Query(None),
-    limit: int = Query(500, le=2000),
-):
-    with get_epg_sources_db() as conn:
-        programmes = epg_crud.list_programmes(
-            conn, channel_id,
-            start_after=start_after,
-            end_before=end_before,
-            limit=limit,
-        )
-    return {"programmes": programmes}
-
-
-@router.post("/programmes/search")
-def search_programmes(data: ProgrammeSearch):
-    with get_epg_sources_db() as conn:
-        programmes = epg_crud.search_programmes(
-            conn,
-            title_pattern=data.pattern,
-            channel_id=data.channel_id,
-        )
-    return {"programmes": programmes}
-
-
-# =============================================================================
-# STREAM MAPPINGS
-# =============================================================================
-
-
-@router.get("/mappings")
-def list_mappings(enabled_only: bool = Query(True)):
-    init_epg_sources_db()
-    with get_epg_sources_db() as conn:
-        mappings = epg_crud.list_mappings(conn, enabled_only=enabled_only)
-    return {"mappings": mappings}
-
-
-@router.post("/mappings", status_code=status.HTTP_201_CREATED)
-def create_mapping(data: StreamMappingCreate):
-    try:
-        with get_epg_sources_db() as conn:
-            mapping = epg_crud.create_mapping(
-                conn,
-                epg_channel_id=data.epg_channel_id,
-                dispatcharr_stream_id=data.dispatcharr_stream_id,
-                dispatcharr_stream_name=data.dispatcharr_stream_name,
-                m3u_account_id=data.m3u_account_id,
-            )
-        return mapping
-    except Exception as e:
-        if "UNIQUE constraint" in str(e):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="This stream is already mapped",
-            )
-        raise
-
-
-@router.delete("/mappings/{mapping_id}")
-def delete_mapping(mapping_id: int):
-    with get_epg_sources_db() as conn:
-        deleted = epg_crud.delete_mapping(conn, mapping_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Mapping not found")
-    return {"success": True, "message": "Mapping deleted"}
-
-
-@router.patch("/mappings/{mapping_id}")
-def toggle_mapping(mapping_id: int, data: MappingToggle):
-    with get_epg_sources_db() as conn:
-        mapping = epg_crud.toggle_mapping(conn, mapping_id, data.enabled)
-    if not mapping:
-        raise HTTPException(status_code=404, detail="Mapping not found")
-    return mapping
-
-
-# =============================================================================
-# DISPATCHARR STREAMS (for mapping UI)
-# =============================================================================
-
-
-@router.get("/dispatcharr-streams")
-def get_dispatcharr_streams():
-    """List all Dispatcharr streams for mapping."""
-    from teamarr.database import get_db
-    from teamarr.dispatcharr.factory import get_dispatcharr_connection
-
-    try:
-        dc = get_dispatcharr_connection(get_db)
-        if not dc:
-            return {"streams": [], "error": "Dispatcharr not configured"}
-
-        # Fetch ALL streams (no group filter) — paginated internally
-        streams = dc.m3u.list_streams()
-        all_streams = [
-            {
-                "id": s.id,
-                "name": s.name,
-                "group_name": s.channel_group or "",
-                "group_id": s.channel_group_id,
-                "m3u_account_id": s.m3u_account_id,
-            }
-            for s in streams
-        ]
-
-        return {"streams": all_streams}
-    except Exception as e:
-        logger.warning("[EPG_SOURCES] Failed to fetch Dispatcharr streams: %s", e)
-        return {"streams": [], "error": str(e)}
