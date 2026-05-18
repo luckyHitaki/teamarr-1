@@ -437,12 +437,13 @@ class TSDBClient:
             logger.debug("[TSDB] Cache hit: %s", cache_key)
             return cached
 
-        league_name = self.get_league_name(league)
-        if not league_name:
+        league_id = self.get_league_id(league)
+        if not league_id:
             return None
 
-        # eventsday.php uses 'l' for league NAME (strLeague), not ID
-        result = self._request("eventsday.php", {"d": date_str, "l": league_name})
+        # eventsday.php accepts numeric league ID — more reliable than league name
+        # which fails for some leagues (e.g. Swiss Super League returns "Invalid League ID")
+        result = self._request("eventsday.php", {"d": date_str, "l": league_id})
         if result:
             # Use tiered TTL based on date
             target_date = date.fromisoformat(date_str)
