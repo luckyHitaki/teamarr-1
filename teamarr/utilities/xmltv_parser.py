@@ -6,8 +6,7 @@ Handles plain XML and gzip-compressed XMLTV sources.
 import gzip
 import logging
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
-from io import BytesIO
+from datetime import UTC, datetime
 from urllib.request import Request, urlopen
 
 logger = logging.getLogger(__name__)
@@ -82,7 +81,7 @@ def _parse_xmltv_datetime(dt_str: str) -> datetime | None:
         try:
             dt = datetime.strptime(dt_str, fmt)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except ValueError:
             continue

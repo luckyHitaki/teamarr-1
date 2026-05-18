@@ -5,8 +5,8 @@ import logging
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from teamarr.database.epg_sources import get_epg_sources_db, init_epg_sources_db
 from teamarr.database.epg_sources import crud as epg_crud
+from teamarr.database.epg_sources import get_epg_sources_db, init_epg_sources_db
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ def create_mapping(data: StreamMappingCreate):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This stream is already mapped",
-            )
+            ) from None
         raise
 
 
@@ -198,7 +198,7 @@ def create_source(data: EPGSourceCreate):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="A source with this URL already exists",
-            )
+            ) from None
         raise
 
 
@@ -258,7 +258,7 @@ def refresh_source(source_id: int):
         raise HTTPException(
             status_code=502,
             detail=f"Failed to fetch EPG source: {e}",
-        )
+        ) from e
 
     with get_epg_sources_db() as conn:
         epg_crud.upsert_channels(conn, source_id, channels)

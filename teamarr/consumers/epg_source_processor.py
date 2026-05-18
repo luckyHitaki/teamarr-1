@@ -7,12 +7,12 @@ and creates channels using the existing lifecycle service.
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC
 from typing import Any
 
 from teamarr.consumers.epg_source_matcher import EPGProgrammeMatcher
-from teamarr.database.epg_sources.connection import get_epg_sources_db, DEFAULT_DB_PATH
 from teamarr.database.epg_sources import crud as epg_crud
+from teamarr.database.epg_sources.connection import DEFAULT_DB_PATH, get_epg_sources_db
 from teamarr.services import SportsDataService
 from teamarr.utilities.xmltv_parser import fetch_and_parse_source
 
@@ -183,9 +183,9 @@ class EPGSourceProcessor:
             return
 
         # Filter to today + upcoming (next 3 days)
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cutoff = now + timedelta(days=3)
         upcoming = [
             p for p in programmes
@@ -276,8 +276,7 @@ class EPGSourceProcessor:
             from datetime import datetime
             dt = datetime.fromisoformat(time_str)
             if dt.tzinfo is None:
-                from datetime import timezone
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except (ValueError, TypeError):
             return None
