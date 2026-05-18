@@ -103,18 +103,31 @@ class TSDBProvider(SportsProvider):
         data = self._client.get_events_by_date(league, date_str)
         if data is not None:
             all_endpoints_failed = False
+            event_count = len(data.get("events") or [])
             if data.get("events"):
                 events = []
                 for event_data in data["events"]:
                     event = self._parse_event(event_data, league)
                     if event:
                         events.append(event)
+                logger.info(
+                    "[TSDB] eventsday %s %s: %d raw, %d parsed",
+                    league, date_str, event_count, len(events),
+                )
                 return events
+            logger.debug(
+                "[TSDB] eventsday %s %s: responded but 0 events", league, date_str
+            )
+        else:
+            logger.warning(
+                "[TSDB] eventsday %s %s: request failed (None)", league, date_str
+            )
 
         # Fall back to next league events, filter by date
         data = self._client.get_league_next_events(league)
         if data is not None:
             all_endpoints_failed = False
+            total_events = len(data.get("events") or [])
             if data.get("events"):
                 events = []
                 for event_data in data["events"]:
@@ -126,13 +139,30 @@ class TSDBProvider(SportsProvider):
                     if event:
                         events.append(event)
                 if events:
+                    logger.info(
+                        "[TSDB] eventsnextleague %s: %d total, %d on %s",
+                        league, total_events, len(events), date_str,
+                    )
                     return events
+                logger.debug(
+                    "[TSDB] eventsnextleague %s: %d events but 0 on %s",
+                    league, total_events, date_str,
+                )
+            else:
+                logger.debug(
+                    "[TSDB] eventsnextleague %s: responded but 0 events", league
+                )
+        else:
+            logger.warning(
+                "[TSDB] eventsnextleague %s: request failed (None)", league
+            )
 
         # Final fallback: eventsround.php with round=1 (full season for some leagues)
         # Works for leagues like Unrivaled where other endpoints return empty
         data = self._client.get_events_by_round(league)
         if data is not None:
             all_endpoints_failed = False
+            total_events = len(data.get("events") or [])
             if data.get("events"):
                 events = []
                 for event_data in data["events"]:
@@ -143,7 +173,18 @@ class TSDBProvider(SportsProvider):
                     event = self._parse_event(event_data, league)
                     if event:
                         events.append(event)
+                logger.info(
+                    "[TSDB] eventsround %s: %d total, %d on %s",
+                    league, total_events, len(events), date_str,
+                )
                 return events
+            logger.debug(
+                "[TSDB] eventsround %s: responded but 0 events", league
+            )
+        else:
+            logger.debug(
+                "[TSDB] eventsround %s: request failed (None)", league
+            )
 
         # If ALL endpoints returned None (rate limited / unreachable), signal
         # to the service layer that this is a transient failure — don't cache
@@ -157,6 +198,10 @@ class TSDBProvider(SportsProvider):
                 f"TSDB: All endpoints failed for {league} on {date_str}"
             )
 
+        logger.info(
+            "[TSDB] No events found for %s on %s (all endpoints returned empty)",
+            league, date_str,
+        )
         return []
 
     # TSDB rate limit optimization: cap at 14 days regardless of caller request
